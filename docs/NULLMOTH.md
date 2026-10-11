@@ -89,6 +89,63 @@ What this changes in the plan:
 The unknowns that remain: whether 1.12.0 actually keeps our panel at 120 Hz, and whether the lag is gone. Both need a
 run on the machine.
 
+## Desktop lag: measurements on driver 1.13.0 (2026-10-11)
+
+Mode: 2880x1800 @ 120 Hz, not HiDPI. Tool: `tools/framepace.swift` (a window that either moves every display tick, like a
+drag, or runs a layer animation) plus the NVRMFB flip counters; `scripts/macos-ws-frame-sample.sh` adds a WindowServer
+`sample` (sudo) of the same frames.
+
+| Run | App ticks | Flips/s | p99 tick | Late frames |
+|---|---|---|---|---|
+| move, process with the leaked `MESA_SHADER_CACHE_DIR` (below) | 116/s | 77-94 | 17-24 ms | 16-22 in 6-8 s |
+| move, clean environment | 119/s | **116** | **8.5 ms** | 2-3 (one ~75 ms hitch) |
+| layer animation | 119/s | 46-110 | 12 ms | 0 |
+
+What this says:
+
+* The composition path can sustain ~120 Hz. Average WindowServer cost is ~4.8 ms per frame (45 % of the main thread), well
+  inside the 8.3 ms budget. The lag is **spikes**, not a low average.
+* NVRMFB flips are asynchronous (NVAccel `iop_async`), ~5 ms each including the wait for the latch; `async_drop` stays 0.
+* In WindowServer `-[NVMTLCommandBuffer commitAndWaitUntilSubmitted]` is `waitUntilCompleted` (on purpose: NVAccel cannot
+  order the swap after an NVK fence). It runs 3 times per frame (compositor flush, twice in CoreDisplay `AccessComplete`), about
+  1.6 ms of GPU wait per frame with no CPU/GPU overlap. All queues share one `VkQueue`, so only the wait right before the swap
+  would be needed. Gain estimated small; not changed.
+
+### Spike source 1: byte-wise VRAM clear in `vramGrant` (fix available)
+
+Every IOSurface WindowServer backs with VRAM goes through `NVRMNVDAFramebuffer::vramGrant`, which clears the block with
+`rep stosb` through the BAR1 mapping. Upstream PR nullmoth/nvidia-macos-driver#64 measured ~180 ms per 8 MB grant (byte
+stores over PCIe) and ~30 ms with `rep stosq`. On this machine `debug.nvaccel_vm_alloc` grows about once per second at idle and
+14 times in a 6 s window drag (1125 grants, 1.76 GB after 18 min of uptime). 1.13.0 still has the byte-wise clear.
+
+* Measure: `bash scripts/macos-vramtest.sh` (sudo; grants and releases 8 MB five times).
+  **This machine, unpatched 1.13.0 (2026-10-11): 727, 744, 951, 1122, 732 ms per 8 MB grant** (baseline sudo+sysctl
+  55 ms), i.e. ~0.7-1.1 s with WindowServer blocked, 4-6x worse than the RTX 3070 Laptop in #64. Release: ~45 ms.
+* Fix (local, until #64 is merged): `bash scripts/macos-nullmoth-vramclear.sh` patches 49 bytes in the installed 1.13.0
+  NVRMFB (exact bytes and the register reasoning are in the script header), backs up the kext and the auxiliary kernel
+  collection to `/Library/NullMoth/vramclear/`, rebuilds the collection like NullMoth's installer. `--check` verifies the
+  binary first; `--undo` restores. It refuses any binary that is not the 1.13.0 one. Original and patched blocks were run
+  side by side in a user-space harness (64 KB..16 MB): identical memory, `rcx`/`r12`/`r13` and flags.
+
+### Spike source 2: `MESA_SHADER_CACHE_DIR` leaks into child processes (NullMoth bug)
+
+`nvmtl_vk_initialize()` sets `MESA_SHADER_CACHE_DIR` to `$(DARWIN_USER_CACHE_DIR)nvmtl-mesa` in a process whose `HOME` is not
+writable. The variable is exported, so every child inherits it. On this machine the Terminal process tree carries the value
+of **root's** cache directory (`/var/folders/zz/zyxvpxvq6csfxvn_n0000000000000/C/nvmtl-mesa`); every Metal process started
+from a shell then prints `Failed to create ... for shader cache (Permission denied)---disabling` and recompiles all NAK
+shaders at every start. GUI apps started by LaunchServices inherit the `NVMTL_*` knobs (and `NVMTL_CONF_SET`) but not this
+variable, so they keep the default cache under `~/.cache/mesa_shader_cache`. Effect measured above (move test, row 1 vs 2).
+
+* Workaround for shells: `scripts/zshrc-nullmoth.sh` (drops an inherited, unwritable `MESA_SHADER_CACHE_DIR`).
+* Fix belongs in the plugin: drop an inherited `MESA_SHADER_CACHE_DIR` that is not writable before choosing the cache, and
+  record the variable in `NVMTL_CONF_SET` like the conf knobs so children forget it. Reported upstream.
+
+### Not the cause
+
+* `nvmtlSurfaceIn` (CPU upload of an IOSurface into a private image) only copies when the IOSurface seed changed; a window
+  drag does not change contents.
+* NVRAM / ESP logging of `itlmt7925` and `ItlDiag` was not tied to frame spikes (not measured separately).
+
 ## Other things seen, effect unknown
 
 * `kernelmanagerd` "restricted lookup table" errors were seen in the log of the same boot.
