@@ -140,6 +140,18 @@ variable, so they keep the default cache under `~/.cache/mesa_shader_cache`. Eff
 * Fix belongs in the plugin: drop an inherited `MESA_SHADER_CACHE_DIR` that is not writable before choosing the cache, and
   record the variable in `NVMTL_CONF_SET` like the conf knobs so children forget it. Reported upstream.
 
+### Boot: 15-19 s in `snapshotBootScreen`
+
+`NVRM-xnu: boot screen: copied 2880x1800 pitch 16384 (28800 KB) from the console ... in 15271 ms` (18674 ms the boot before).
+The copy reads the GOP framebuffer through `map(kIOMapInhibitCache)` with 8-byte loads, ~1.9 MB/s over PCIe. Workaround:
+`-nvrmnobootscreen`. Upstream could read through a write-combined mapping with streaming loads (MOVNTDQA) or use the copy
+engine, or skip the copy when the console is the verbose text console.
+
+### Scaled modes go black (no HiDPI)
+
+See `HANDOFF.md` item 7: `switchMode` test commit of a 1440x900 surface onto the 2880x1800 raster fails, NVRMFB keeps the old
+mode, WindowServer does not, the panel shows nothing new. No HiDPI modes are offered even with a scale-resolutions override.
+
 ### Not the cause
 
 * `nvmtlSurfaceIn` (CPU upload of an IOSurface into a private image) only copies when the IOSurface seed changed; a window
