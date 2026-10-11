@@ -80,8 +80,8 @@ What this changes in the plan:
 * The previous "copy path" hypothesis (CPU `memmove` in `nvmtlSurfaceIn`) is **not** the leading explanation any more.
   The driver's own commit message on `3619f95e` names the cursor-flip as the cause of a visible artefact, and the
   1.12 notes describe the IOSurface copy path only for the headless (Optimus) case, not ours.
-* The macOS display override in `macos/display-override/` (EDID with a 120 Hz base DTD) works around something the
-  driver now handles itself. Remove it (`scripts/install-display-override.sh --undo`) when testing 1.12 so only one
+* The macOS display override that was installed earlier (EDID with a 120 Hz base DTD; sources removed from the repo) works around something the
+  driver now handles itself. Remove it (`sudo bash scripts/remove-display-override.sh`) when testing 1.12 so only one
   variable changes.
 * Open at 1.12.0 per the vendor: "black screen or flicker above 60 Hz on some monitors". That is our 120 Hz black
   screen; the vendor's route is the display tracker plus "Send logs" (uploads to NullMoth; the owner decides).
