@@ -28,6 +28,7 @@ run ioreg-nvrm       bash -c 'ioreg -l -w0 2>/dev/null | grep -Ei "nvrm|nvaccel|
 run ioreg-display    bash -c 'ioreg -l -w0 -r -c IOFramebuffer 2>/dev/null | grep -Ei "IOFBCurrentPixelClock|IOFBTimingRange|timing|refresh|IOFBDetailedTiming|IODisplayEDID|IOFBHiDPI|IOFBScalerInfo" | head -120'
 run display          system_profiler SPDisplaysDataType
 run nullmoth-dir     bash -c 'ls -la /Library/NullMoth 2>/dev/null; echo; echo "-- allow-list:"; cat /Library/NullMoth/nvmtl-allow.txt 2>/dev/null; echo; echo "-- driver-version:"; cat /Library/NullMoth/driver-version 2>/dev/null'
+run display-trace    bash -c 'for f in trace.txt kernel.txt ws.txt; do echo "== $f"; tail -n 300 /Library/NullMoth/display-trace/$f 2>/dev/null; done'
 run extensions       bash -c 'ls -la /Library/Extensions 2>/dev/null'
 run override         bash -c 'ls -laR /Library/Displays/Contents/Resources/Overrides 2>/dev/null | head -60'
 run log-nullmoth     log show --last 30m --style compact --predicate 'eventMessage CONTAINS[c] "NullMoth" OR eventMessage CONTAINS[c] "NVRM" OR eventMessage CONTAINS[c] "NVMTL" OR eventMessage CONTAINS[c] "NVAccel"'

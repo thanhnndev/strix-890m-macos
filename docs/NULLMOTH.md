@@ -1,8 +1,13 @@
 # NullMoth driver: what we know (2026-10-11)
 
-Source of this page: the installer scripts and the kext/bundle binaries on the macOS volume, read from Linux
-(`strings`, `llvm-objdump`, plists), plus one `sample WindowServer`. Nothing here was verified by running the
-driver under a debugger. Anything marked **unknown** is a gap, not a conclusion.
+**Read the vendor's source first.** The driver is published with source at
+<https://github.com/nullmoth/nvidia-macos-driver> (PolyForm Noncommercial; release notes in `docs/RELEASE-*.md`). The
+first pass of this page was derived from the installed binaries (`strings`, `llvm-objdump`) and a `sample
+WindowServer`; that was the wrong starting point, and the lag hypothesis it produced was not the best lead. The
+component and recovery sections below stay valid; the lag section was replaced (2026-10-11).
+
+Installed here: **1.9.0** (2026-10-10). Latest release: **1.12.0** (2026-10-11 03:26Z). Nothing here was verified by
+running a newer driver.
 
 Rules that apply (see `HANDOFF.md`): do not disable the driver and do not guess at boot-args/quirks. The goal is a
 working NullMoth driver; a change needs a root cause and the owner's agreement.
@@ -56,31 +61,33 @@ is launched by launchd, so they are not an easy lever): `NVMTL_NO_SURFACE_SHARE`
 `NVMTL_PSTAT`, `NVMTL_NVK_MESSAGES`, `NVMTL_VRAM_HEADROOM_MB`, `NVMTL_RES2_*`, `NVMTL_SPVCACHE_*`, `NVK_DEBUG`,
 `NVK_DIAG`, `NVRM_GSUB_LOG`, `NVRM_XNU_TRACE`, ... (about 100 `NVMTL_*`, 40 `NVK_*`, 10 `NVRM_*`).
 
-## Desktop lag: hypothesis (not confirmed)
+## Desktop lag and 120 Hz: what changed between 1.9.0 and 1.12.0
 
-`windowserver-sample.txt` (idle desktop, 6.7 s): WindowServer is about 95 % blocked in `mach_msg`, so it is not CPU
-bound. The work it does is on the render path:
+Read from `git compare v1.9.0...v1.12.0` (39 commits). These are the changes that touch what we saw:
 
-`CA::OGL::MetalContext::draw` -> `-[NVMTLRenderCommandEncoder setFragmentTexture:]` -> `-[NVMTLTexture nvmtlSurfaceIn]`
--> `nvmtl_vk_image_write` -> `memmove`, plus `vk_WaitForFences` -> `nvrm_gsub_wait`.
+| Release | Commit | Change | Relevance |
+|---|---|---|---|
+| 1.10.0 | `3619f95e` | `cursorApply()` used to name the primary surface too, so **every cursor move was also a primary flip, paced to vsync**, and an older frame could go back on the panel ("flash on mouse movement"). Now cursor-only commits. | Matches a laggy pointer/desktop on 1.9.0. |
+| 1.10.0 | `223555ff` | `addKmsRefreshModes`: also offers rasters NVKMS validated that macOS never proposed, e.g. **modes that exist only in the EDID's DisplayID block (most 100-240 Hz modes, issue #29)**. | Our panel's 120 Hz mode is DisplayID-only (see `HANDOFF.md` item 3). |
+| 1.10.0 | `4cc045dc` | Managed no-copy buffers get a VRAM copy (were read across PCIe). | Throughput of image-heavy work. |
+| 1.10.0 | `db2e966e` | Flicker workaround restarts WindowServer only at the login window. | Black screen after the restart on auto-login. |
+| 1.10.0 | `51546402` | Setup requires **Lilu + AMFIPass** on. Without AMFIPass, WindowServer (platform binary) refuses the ad hoc signed driver: "mapping process is a platform binary, but mapped file is not", no Metal device, black screen with a cursor. | Our `Kernel/Add` has Lilu but **no AMFIPass.kext**. |
+| 1.11.0 | `9a20289a` | Setup adds boot-arg `ipc_control_port_options=0` (Firefox crashes at launch with AMFI relaxed). | Missing from our boot-args. |
+| 1.12.0 | tracker | Display tracker writes `/Library/NullMoth/display-trace/{trace,kernel,ws}.txt` from the first second of every boot (per-second driver counters, refresh rate per framebuffer, WindowServer starts, EDID). Survives a forced restart. | Exactly the evidence the black-screen-above-60 Hz case needs. |
 
-Reading of the disassembly: an IOSurface-backed texture is either
-1. in a family-shared VRAM image (zero copy), or
-2. a per-process private image that is filled by a CPU `memmove` on bind (`nvmtlSurfaceIn`).
+What this changes in the plan:
 
-The sample shows path 2 for WindowServer's textures. If it is always path 2, every composited surface is copied per
-frame at 2880x1800 which would explain a laggy but not CPU-saturated desktop. What is **unknown**:
+* The previous "copy path" hypothesis (CPU `memmove` in `nvmtlSurfaceIn`) is **not** the leading explanation any more.
+  The driver's own commit message on `3619f95e` names the cursor-flip as the cause of a visible artefact, and the
+  1.12 notes describe the IOSurface copy path only for the headless (Optimus) case, not ours.
+* The macOS display override in `macos/display-override/` (EDID with a 120 Hz base DTD) works around something the
+  driver now handles itself. Remove it (`scripts/install-display-override.sh --undo`) when testing 1.12 so only one
+  variable changes.
+* Open at 1.12.0 per the vendor: "black screen or flicker above 60 Hz on some monitors". That is our 120 Hz black
+  screen; the vendor's route is the display tracker plus "Send logs" (uploads to NullMoth; the owner decides).
 
-* whether this path is taken for every bind or only for first use of a surface,
-* the active mode (60 vs 120 Hz, HiDPI) of the current boot,
-* whether the sysctl counters (`debug.nvaccel_iop*`, `debug.nvrmfb_flip_*`, `debug.nvrm_pageoff_*`) show copies vs
-  zero-copy flips.
-
-Data needed: run `bash scripts/macos-nullmoth-probe.sh --window` on macOS and drag a window during the 5 s sample.
-Compare the counters before and after.
-
-If the cause is the copy path, the fix belongs in the driver (the vendor), not in our config. Report it upstream with
-the sample and counters rather than changing quirks here.
+The unknowns that remain: whether 1.12.0 actually keeps our panel at 120 Hz, and whether the lag is gone. Both need a
+run on the machine.
 
 ## Other things seen, effect unknown
 
