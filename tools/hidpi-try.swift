@@ -5,7 +5,7 @@
 // "1440 x 900" mode does, and that one goes black on NullMoth 1.13 (see docs/HANDOFF.md item 7). This tool never picks a
 // mode whose pixel size differs from the native one.
 // Build: swiftc -O tools/hidpi-try.swift -o /tmp/hidpi-try
-// Run:   /tmp/hidpi-try list            all modes, HiDPI ones marked
+// Run:   /tmp/hidpi-try list [--all]    desktop modes (--all: also the hidden ones), HiDPI ones marked
 //        /tmp/hidpi-try 1440            switch to "looks like 1440 x 900" (HiDPI) for this session; press Return within 15 s
 //                                       to keep it, otherwise (black screen, nothing typed) it goes back by itself
 //        /tmp/hidpi-try 1440 --keep     same, and once confirmed make it the saved setting (survives log out / reboot)
@@ -17,13 +17,15 @@ let all = (CGDisplayCopyAllDisplayModes(d, [kCGDisplayShowDuplicateLowResolution
 guard let cur = CGDisplayCopyDisplayMode(d) else { print("no display mode"); exit(1) }
 let nativeW = all.map(\.pixelWidth).max() ?? cur.pixelWidth
 func desc(_ m: CGDisplayMode) -> String {
-    String(format: "id 0x%08x  looks like %4dx%-4d  pixels %4dx%-4d  %3.0f Hz%@", m.ioDisplayModeID, m.width, m.height,
-           m.pixelWidth, m.pixelHeight, m.refreshRate, m.pixelWidth == 2 * m.width ? "  HiDPI" : "")
+    String(format: "id 0x%08x  looks like %4dx%-4d  pixels %4dx%-4d  %3.0f Hz  flags 0x%08x%@%@", m.ioDisplayModeID, m.width,
+           m.height, m.pixelWidth, m.pixelHeight, m.refreshRate, m.ioFlags, m.pixelWidth == 2 * m.width ? "  HiDPI" : "",
+           m.isUsableForDesktopGUI() ? "" : "  (hidden: not usable for the desktop)")
 }
 let args = CommandLine.arguments
 if args.count < 2 || args[1] == "list" {
     print("current: " + desc(cur))
-    for m in all where m.isUsableForDesktopGUI() { print("  " + desc(m)) }
+    // flags: 0x00800000 valid for HiRes, 0x00200000 valid for mirroring (alone: mirror-only), 0x02000000 native
+    for m in all where m.isUsableForDesktopGUI() || args.contains("--all") { print("  " + desc(m)) }
     if !all.contains(where: { $0.pixelWidth == 2 * $0.width }) {
         print("no HiDPI mode is offered (WindowServer pref DisplayResolutionEnabled + the scale-resolutions override, then reboot)")
     }
