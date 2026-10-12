@@ -184,6 +184,8 @@ engine, or skip the copy when the console is the verbose text console.
 
 ### Scaled modes go black (no HiDPI)
 
+*Update 2026-10-11 19:13: "looks like 1440 x 900" at 120 Hz works with the same-size HiRes override, see [SCRIPTS.md §4](SCRIPTS.md#4-hidpi-looks-like-1440-x-900-step-by-step). Genuinely scaled modes (1680x1050, 1280x800, the low-resolution 1440x900) still go black, as below.*
+
 See `HANDOFF.md` item 7: `switchMode` test commit of a 1440x900 surface onto the 2880x1800 raster fails, NVRMFB keeps the old
 mode, WindowServer does not, the panel shows nothing new. No HiDPI modes are offered even with a scale-resolutions override.
 (That override marked its entries mirror-only, see `HANDOFF.md` item 7 round d; fixed in `scripts/macos-install-hidpi.sh`.)
