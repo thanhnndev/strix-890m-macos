@@ -72,8 +72,23 @@ Pitfalls hit: kmutil only accepts `root:wheel` kexts (run as root); a kext needs
 
 ## Verify after the reboot
 
-**Result 2026-10-12 (owner-confirmed): brightness works** through `NVRMEdpBL`. Per-item results of the checklist (log lines, `0x721`,
-wake/sleep persistence, software dimmer off) were not written down: please add them here when you re-run it.
+**Result 2026-10-12 (owner-confirmed): brightness works** through `NVRMEdpBL`. Measured on the same day on the reference unit
+(macOS 15.8.1, NullMoth 1.14.2 + `NVRMEdpBL`, boot-arg `nvrmacpibl=1`); read-only DPCD reads with the prebuilt `nvrm-dpcd 0x200`,
+brightness set through `DisplayServicesSetBrightness`:
+
+| # | Item | Result |
+|---|---|---|
+| 1 | NVRM-edpbl log | ✅ both boots of the day: `display 0x200: eDP rev 0x05 caps 0x9b 0x86: brightness over AUX, 2 byte(s), 11 bits, max 2047`, then `first brightness write: 100% = level 2047 of 2047` ~2 s later |
+| 2 | DPCD follows the slider | ✅ `0x720..0x723` after `set`: 0.5 -> `00 02 04 00`, 0.25 -> `00 02 02 00`, 0.1 -> `00 02 00 cd`, 0.6 -> `00 02 04 cc`, 1.0 -> `00 02 07 ff` (`0x721 = 02`, `0x722/3` = level). Readback through `DisplayServicesGetBrightness` equals the value set |
+| 2b | Fn+F7 / Fn+F8 and "the panel itself gets dimmer" | 🟡 the keys and the **visible** dimming need a person: not measured here (the register path is proven, the eyes are not) |
+| 3 | RogControl software dimmer | 🟡 off on this unit (`defaults read com.itlmt7925.RogControl dim` = 0), but the **default in the code is on** (`RogControl.swift`, `dim ... ?? true`): a fresh install gets the overlay on top of the real dimming. To change the default is a one-line edit, not done without asking |
+| 4 | Display sleep / wake x3 at 0.6 | ✅ level `04 cc` and `DisplayServicesGetBrightness` = 0.6 after each wake (one DPCD read failed while the display was asleep, as expected) |
+| 5 | **System** sleep / wake | ⚪ not measured (system sleep is not reliable yet: [ROADMAP](ROADMAP.md) workstream 22) |
+
+Observed oddity, not explained: right after boot the first `set 1.0` left `0x721 = 01`, level `00 00` (the firmware's default path) and
+only later writes of 1.0 gave `0x721 = 02`, level `07 ff`. Brightness at 100 % was correct in both cases.
+
+The original checklist, for re-runs:
 
 1. `log show --last 5m | grep NVRM-edpbl`: `display 0x200: eDP rev 0x05 caps 0x9b 0x86 ... brightness over AUX`, then
    `first brightness write`.
