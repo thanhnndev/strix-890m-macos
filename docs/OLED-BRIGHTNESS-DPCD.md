@@ -70,7 +70,10 @@ Order of undo: `macos-edpbl-install.sh --undo` first (back to the VRAM-clear-onl
 Pitfalls hit: kmutil only accepts `root:wheel` kexts (run as root); a kext needs `KMOD_EXPLICIT_DECL` (`_kmod_info`);
 `kmutil` reports "could not find version compatible with 0.1" until NVRM has `OSBundleCompatibleVersion`.
 
-## Verify after the reboot (not done yet: update this section with the result)
+## Verify after the reboot
+
+**Result 2026-10-12 (owner-confirmed): brightness works** through `NVRMEdpBL`. Per-item results of the checklist (log lines, `0x721`,
+wake/sleep persistence, software dimmer off) were not written down: please add them here when you re-run it.
 
 1. `log show --last 5m | grep NVRM-edpbl`: `display 0x200: eDP rev 0x05 caps 0x9b 0x86 ... brightness over AUX`, then
    `first brightness write`.
