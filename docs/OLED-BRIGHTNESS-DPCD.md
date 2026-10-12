@@ -1,7 +1,7 @@
 # OLED brightness: the panel is AUX-only, RM's backlight call does nothing (2026-10-12)
 
 Machine: GA403WM, RTX 5060 Laptop, built-in 2880x1800 OLED (eDP, `displayId 0x200`), NullMoth 1.14.0 loaded / 1.14.2 installed.
-RogControl's `Dimmer` (black click-through window) is a workaround; this page is the cause.
+RogControl used to carry a software `Dimmer` (black click-through window) as a workaround; it was removed on 2026-10-12. This page is the cause.
 
 ## Evidence
 
@@ -81,7 +81,7 @@ brightness set through `DisplayServicesSetBrightness`:
 | 1 | NVRM-edpbl log | ✅ both boots of the day: `display 0x200: eDP rev 0x05 caps 0x9b 0x86: brightness over AUX, 2 byte(s), 11 bits, max 2047`, then `first brightness write: 100% = level 2047 of 2047` ~2 s later |
 | 2 | DPCD follows the slider | ✅ `0x720..0x723` after `set`: 0.5 -> `00 02 04 00`, 0.25 -> `00 02 02 00`, 0.1 -> `00 02 00 cd`, 0.6 -> `00 02 04 cc`, 1.0 -> `00 02 07 ff` (`0x721 = 02`, `0x722/3` = level). Readback through `DisplayServicesGetBrightness` equals the value set |
 | 2b | Fn+F7 / Fn+F8 and "the panel itself gets dimmer" | 🟡 the keys and the **visible** dimming need a person: not measured here (the register path is proven, the eyes are not) |
-| 3 | RogControl software dimmer | 🟡 off on this unit (`defaults read com.itlmt7925.RogControl dim` = 0), but the **default in the code is on** (`RogControl.swift`, `dim ... ?? true`): a fresh install gets the overlay on top of the real dimming. To change the default is a one-line edit, not done without asking |
+| 3 | RogControl software dimmer | ✅ removed from the code (`Dimmer`, the `dim` setting and both toggles), so no overlay can stack on top of the real dimming. An older installed build keeps the overlay until it is replaced (`scripts/build-rogcontrol.sh --install`) |
 | 4 | Display sleep / wake x3 at 0.6 | ✅ level `04 cc` and `DisplayServicesGetBrightness` = 0.6 after each wake (one DPCD read failed while the display was asleep, as expected) |
 | 5 | **System** sleep / wake | ⚪ not measured (system sleep is not reliable yet: [ROADMAP](ROADMAP.md) workstream 22) |
 
@@ -94,8 +94,8 @@ The original checklist, for re-runs:
    `first brightness write`.
 2. Slider and Fn+F7 / Fn+F8 dim the OLED itself; `tools/nvrm-dpcd.c` (`cc ... -framework IOKit`, no root) reads
    `0x721 = 02`, `0x722/3` = the level.
-3. Turn RogControl's software dimming off (`dim` default, "Dim the built-in OLED in software"), otherwise the overlay
-   dims on top. If the real brightness works, remove the `Dimmer` from RogControl or default it to off.
+3. Make sure no RogControl build older than 2026-10-12 is running (those draw the software-dimming overlay on top of
+   the real dimming); the current source has no `Dimmer`.
 4. After display sleep / wake: does the level survive? (the code rewrites level and mode on every set, but nothing
    re-sends brightness if macOS does not.)
 5. If the panel misbehaves: boot-arg `nvrmedpbl=0`, or the undo above. A panic at boot: OpenCore safe mode / the

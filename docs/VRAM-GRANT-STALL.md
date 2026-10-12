@@ -51,7 +51,7 @@ freed block of the same size).
   same way it matches the shipped binary: same 263 symbols and imports) by `scripts/macos-nvrmfb-vramclear-patch.sh`;
   `--undo` puts the upstream executable back.
 * boot-args gained `nvrmacpibl=1`: 1.14.1 stopped asking the GPU firmware for backlight tables by default (some PCs hung
-  there); 1.14.0 did, and the brightness slider / software dimmer rely on it. Backup `config.plist.pre-nvrmacpibl-20261012`.
+  there); 1.14.0 did, and the brightness slider (and, in older RogControl builds, the software dimmer) rely on it. Backup `config.plist.pre-nvrmacpibl-20261012`.
 * NVMTLDriver.bundle is upstream's again (Codex's upload-copy candidate was replaced; its original is in
   `/Library/NullMoth/ws-upload-test/previous.bundle` and the upgrade backup).
 * After the reboot: `scripts/macos-nvrmfb-vramclear-ab.sh` (root) prints clear MB/s for mode 0 (rep stosq) and 1 (movnti) in the same boot.
