@@ -76,17 +76,23 @@ func confirm() -> Bool {
 func wsApply(_ i: Int32, _ opt: CGConfigureOption) -> Bool {
     var c: CGDisplayConfigRef?
     guard CGBeginDisplayConfiguration(&c) == .success else { return false }
-    guard CGSConfigureDisplayMode(c, d, i) == .success else { CGCancelDisplayConfiguration(c); return false }
-    return CGCompleteDisplayConfiguration(c, opt) == .success
+    var e = CGSConfigureDisplayMode(c, d, i)
+    guard e == .success else { CGCancelDisplayConfiguration(c); print("  configure: CGError \(e.rawValue)"); return false }
+    e = CGCompleteDisplayConfiguration(c, opt)
+    // 1007 (cannot complete): WindowServer logs "Mode N not available", e.g. a HiDPI copy flagged 0x80000000
+    if e != .success { print("  complete: CGError \(e.rawValue)") }
+    return e == .success
 }
 if cands.isEmpty {
     // WindowServer's hidden HiDPI modes; only those whose backing is the native framebuffer (no scaled NVRMFB mode set)
     let ws = wsModes(d)
     var curIdx: Int32 = -1
     let wsc = ws.filter { $0.width == want && $0.density == 2 && Int(Float($0.width) * $0.density) == nativeW }
-    // prefer the copy of the native mode (flag 0x02000000), then the highest refresh rate
-    guard CGSGetCurrentDisplayMode(d, &curIdx) == .success,
-          let t = wsc.max(by: { ($0.flags & 0x02000000, $0.hz) < ($1.flags & 0x02000000, $1.hz) }) else {
+    // prefer modes not flagged 0x80000000 (WindowServer refuses those: the native NVRMFB mode has no HiRes flag, so its
+    // HiDPI copy is unusable; the override's 2880x1800 HiRes scaled mode gives a usable one), then the copy of the native
+    // mode (flag 0x02000000), then the highest refresh rate
+    func rank(_ m: WSMode) -> (UInt32, UInt32, Int) { (m.flags & 0x80000000 == 0 ? 1 : 0, m.flags & 0x02000000, m.hz) }
+    guard CGSGetCurrentDisplayMode(d, &curIdx) == .success, let t = wsc.max(by: { rank($0) < rank($1) }) else {
         print("no HiDPI mode that looks like \(want) wide with the native \(nativeW)-pixel framebuffer; nothing changed"); exit(1)
     }
     let was = ws.first { $0.index == curIdx }.map(wsDesc) ?? "ws #\(curIdx)"
