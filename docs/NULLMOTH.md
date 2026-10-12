@@ -6,8 +6,17 @@ first pass of this page was derived from the installed binaries (`strings`, `llv
 WindowServer`; that was the wrong starting point, and the lag hypothesis it produced was not the best lead. The
 component and recovery sections below stay valid; the lag section was replaced (2026-10-11).
 
-Installed here: **1.9.0** (2026-10-10). Latest release: **1.12.0** (2026-10-11 03:26Z). Nothing here was verified by
-running a newer driver.
+Installed here: **1.14.0** (2026-10-11 19:57, `nullmoth-setup.sh` 1.14 run as root with `--pkg` (SHA-256 checked against
+the release `SHA256SUMS.txt`), `--tool NullMothSafe.efi` (1.14 build), `--logo off`). Backup of the previous install:
+`/Library/NullMoth/backup-20261011-195719.*`; ESP config backups `config.plist.pre-nm114-20261011-195530` (ours) and
+`config.plist.nullmoth-20261011-195710` (the setup's). Config changes by the setup: the "1401: Remove NVIDIA driver" entry
+gains `TextMode`, a new Misc.Tools entry "1401: Start once without NVIDIA driver" (`NullMothSafe.efi`, argument `once`);
+everything else is key reordering (the iGPU class-code/name hide is kept). It also arms a "flicker stopgap" that restarts
+WindowServer once per boot (opt out: `/Library/NullMoth/no-wsreset`).
+
+1.14.0 items that matter here: display sleep turns the panel off (#90, the lock-screen symptom), stale/black windows
+(#98), WebGL, the Photos crash, DSC, hardware encode, and `vramGrant` clears with `nvu_zero_wide`, so the local
+vramclear patch below is obsolete (the script refuses any binary that is not 1.13.0).
 
 Rules that apply (see `HANDOFF.md`): do not disable the driver and do not guess at boot-args/quirks. The goal is a
 working NullMoth driver; a change needs a root cause and the owner's agreement.
@@ -121,7 +130,7 @@ stores over PCIe) and ~30 ms with `rep stosq`. On this machine `debug.nvaccel_vm
 * Measure: `bash scripts/macos-vramtest.sh` (sudo; grants and releases 8 MB five times).
   **This machine, unpatched 1.13.0 (2026-10-11): 727, 744, 951, 1122, 732 ms per 8 MB grant** (baseline sudo+sysctl
   55 ms), i.e. ~0.7-1.1 s with WindowServer blocked, 4-6x worse than the RTX 3070 Laptop in #64. Release: ~45 ms.
-* Fix (local, until #64 is merged): `bash scripts/macos-nullmoth-vramclear.sh` patches 49 bytes in the installed 1.13.0
+* Fixed upstream in 1.14.0 (`nvu_zero_wide`); re-measure with the script above. Old local fix for 1.13.0: `bash scripts/macos-nullmoth-vramclear.sh` patches 49 bytes in the installed 1.13.0
   NVRMFB (exact bytes and the register reasoning are in the script header), backs up the kext and the auxiliary kernel
   collection to `/Library/NullMoth/vramclear/`, rebuilds the collection like NullMoth's installer. `--check` verifies the
   binary first; `--undo` restores. It refuses any binary that is not the 1.13.0 one. Original and patched blocks were run
