@@ -23,6 +23,11 @@ working NullMoth driver; a change needs a root cause and the owner's agreement.
 
 ## Components
 
+Current WindowServer CPU follow-up on 1.14.0: [WINDOWSERVER-CPU.md](WINDOWSERVER-CPU.md). A reversible hide/restore
+test reduced CPU from 79% to 12%; hiding only ChatGPT/Codex reduced it to 1.5%. The original sample contains real
+IOSurface upload/readback work, but an application-independent driver busy loop is not supported by this test.
+Repeat with no active Codex turn before attributing persistent repainting to the application.
+
 | Piece | What it is |
 |---|---|
 | `NVRM.kext` | NVIDIA open-gpu-kernel-modules 610.57.04 ported to XNU. Boots GSP-RM on the RTX 5060. |
