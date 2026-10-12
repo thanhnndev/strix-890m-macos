@@ -81,5 +81,83 @@ If the load remains high with ChatGPT minimized in a quiet repeat, collect a new
 with `scripts/macos-ws-frame-sample.sh` (sudo needed). Further driver changes need that evidence. Removing the completion
 wait or forcing a sharing knob without checking synchronization risks stale/black frames and is not a justified fix.
 
-No upstream issue or message has been sent. A full driver-side optimization is still unproven; this investigation
-provides a measured mitigation and a reproducible way to separate application repaint load from background load.
+The initial visibility investigation above was followed by the system/driver investigation below.
+
+## System-wide follow-up and upstream candidate
+
+Source checkout: `/Users/thanhnndev/develop/projects/nvidia-macos-driver-ws`, base
+`de9b33aa98dcb0ba6d5bf624fc3817e4a2d8bd66`; candidate commit
+`68b4ce209a32135385ec4b27221fc8c2cecfc484`.
+[Draft PR #139](https://github.com/nullmoth/nvidia-macos-driver/pull/139) proposes an upload-copy optimization.
+It does not claim to fix every source of desktop CPU load.
+
+The new root-authorized system spindump is in `~/efi-audit/ws-system-20261012-114755/`:
+
+* WindowServer: 5.759 s CPU over 8.00 s (72% of one logical CPU), main thread 4.476 s.
+* Kernel task: 1.373 s; its named NVRM thread used 0.246 s. NVRM is not spinning continuously in this capture.
+  Kernel work executing on a client thread can be charged to that client, so kernel_task time alone does not
+  exclude driver overhead in WindowServer.
+* The spindump collector itself used 10.230 s CPU. Exclude that instrumentation cost when discussing normal
+  system utilization; do not treat its work as a background-system problem.
+* Main-thread stacks contain the IOSurface staging-copy path, QuartzCore composition and synchronous Metal
+  completion. The source deliberately keeps those completion waits to protect rendering and image lifetime.
+* RAM pressure was low, swap was zero. The displays are 1920x1080 at 144 Hz and 2880x1800 at 120 Hz (1440x900 HiDPI).
+* On AC power, CPPC was off; busy Zen 5 cores measured about 2.03 GHz and Zen 5c about 1.64–1.80 GHz in this capture.
+  The earlier clock snapshot had Zen 5c at 1.42 GHz. CPU power management is a separate performance limitation;
+  no MSRs, CPPC settings or CPU kexts were changed by this investigation.
+
+Synthetic static/animation/move runs were also saved under `~/efi-audit/ws-system-20261012/`. Their background
+isolation was not reliable: the on-screen window inventory still included ChatGPT and a full-screen Screenshot
+overlay after requesting application hiding. Do not use those runs as a clean idle baseline or to assign driver
+head indices to physical monitors.
+
+Direct GPU tests independently exercised a 2880x1800 texture and a shared IOSurface on the installed NVK/kexts.
+Shared-VRAM import and buffer/image alias creation both succeeded, and readback matched the input. This rules out
+a universally broken shared-import path on this machine, but does not prove every compositor surface uses it.
+
+An attempted tight-pitch readback memcpy optimization produced correct pixels but no consistent performance gain
+and was discarded. The deferred-upload approach in PR #96 was cherry-picked and then made synchronous upstream
+in commit `77e4c9839f5925a7087357d552790a7edcc978fa`: freeing the destination image could race the GPU copy. That
+approach was not reapplied. macOS Reduce transparency also did not reduce the measured load (steady repeat 83%).
+
+### What PR #139 changes and what is verified
+
+Large GPU-consumed staging uploads use AVX2 streaming stores when the destination and tight row size are aligned
+to 32 bytes. A CPU SFENCE completes those stores before the existing Vulkan transfer/submission. Small/unaligned
+uploads and CPUs without AVX2 keep libc memcpy. GPU completion waits and resource lifetimes are unchanged.
+
+On the RTX 5060/HX 370, three interleaved warmed process runs per variant/pitch gave these medians for 2880x1800:
+
+| Source pitch | Original upload CPU | Candidate upload CPU | Original wall | Candidate wall |
+|---|---:|---:|---:|---:|
+| 11520 (tight) | 2.347 ms | 1.920 ms | 3.384 ms | 2.979 ms |
+| 11584 (+64 padding) | 2.367 ms | 1.926 ms | 3.311 ms | 2.914 ms |
+
+This is about 18% less CPU per upload and 12% lower upload wall time. Individual runs varied. These are isolated
+transfer numbers, **not a measured reduction of WindowServer CPU**. Pixel checks changed the first/last pixel on
+each iteration, compared every output row and checked output padding. ASan/UBSan helper tests, full plugin builds,
+release GPU roundtrips and an ARM64 fallback compile check passed. Other GPUs/older CPUs remain unmeasured.
+
+Raw measurements: `~/efi-audit/ws-cpu-20261011/final-upload-ab.json`. The release candidate is
+`~/efi-audit/ws-upload-candidate/NVMTLDriver` (SHA256
+`5975192f1d5cc8ed8b6c2bcb53a1fe0ac55b301806e232cd0c49f0981b576d6a`).
+
+### Install and desktop validation
+
+`scripts/macos-ws-upload-install.sh` validates the exact collected 1.14.0 executable and candidate hashes, stages
+the bundle, and atomically exchanges it with the installed bundle. The full original bundle is retained in
+`/Library/NullMoth/ws-upload-test/previous.bundle`. The signed candidate bytes were verified standalone; vendor
+package assets/signatures are otherwise preserved. The original vendor bundle already fails whole-bundle resource
+seal verification, so that check is not used to assert candidate compatibility. A copied candidate bundle loads
+through NSBundle in an isolated process. This still does not replace WindowServer activation testing.
+
+```sh
+sudo bash scripts/macos-ws-upload-install.sh
+# Reboot after saving work. Then reproduce the same workload:
+bash scripts/macos-ws-system-collect.sh
+```
+
+Undo (then reboot): `sudo bash scripts/macos-ws-upload-install.sh --undo`.
+The installer never restarts WindowServer itself. A disk replacement does not change code already mapped by the
+running WindowServer. Verify the next boot's sample driver UUID against the candidate, compare CPU time/flips under
+the same workload, and check rendering, app launches, display sleep and both displays before promoting the draft.
