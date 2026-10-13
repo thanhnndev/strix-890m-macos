@@ -6,8 +6,13 @@ first pass of this page was derived from the installed binaries (`strings`, `llv
 WindowServer`; that was the wrong starting point, and the lag hypothesis it produced was not the best lead. The
 component and recovery sections below stay valid; the lag section was replaced (2026-10-11).
 
-**Current state (2026-10-12): upstream 1.14.2 + two machine-local patches, loaded after the next reboot.** See
-"Local patches on top of upstream" below; the 1.14.0 paragraph that follows is the history of the first 1.14 install.
+**Current state (2026-10-13 09:49): upstream 1.14.7 + the fork overlay (`ga403wm`: NVRMFB + NVRMEdpBL), installed, loads at the next
+reboot** (the running system still has the 1.14.2 build loaded until then). Upstream step: `install.sh` of
+`nullmoth-nvidia-1.14.7.tar.gz` (SHA-256 checked against the release `SHA256SUMS.txt`), backup
+`/Library/NullMoth/backup-20261013-094918.76m8j2` (`uninstall.sh <backup>`); overlay: `macos-edpbl-install.sh` (`--undo`, state
+`/Library/NullMoth/edpbl-patch`). 1.14.2 -> 1.14.7 left NVRM, NVRMFB and NVRMAGDC byte-identical; NVAccel and the userland
+bundles changed (shader caches start empty). The auxiliary collection holds NVRM, NVRMFB, NVRMAGDC, NVAccel and NVRMEdpBL.
+Not yet confirmed: the boot on 1.14.7 itself. See "Local patches on top of upstream" below; the 1.14.0 paragraph that follows is the history of the first 1.14 install.
 
 Installed before that: **1.14.0** (2026-10-11 19:57, `nullmoth-setup.sh` 1.14 run as root with `--pkg` (SHA-256 checked against
 the release `SHA256SUMS.txt`), `--tool NullMothSafe.efi` (1.14 build), `--logo off`). Backup of the previous install:
