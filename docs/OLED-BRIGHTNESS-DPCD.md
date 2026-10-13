@@ -30,7 +30,8 @@ Decoded (VESA eDP names):
 
 ## Fix
 
-Fork `thanhnndev/nvidia-macos-driver`, branch `nvrm-edp-aux-backlight`, commit `3501a25` (based on 1.14.2):
+Fork [`thanhnndev/nvidia-macos-driver`](https://github.com/thanhnndev/nvidia-macos-driver), branch **`ga403wm`** (upstream v1.14.7 + the commits below; first developed as
+`nvrm-edp-aux-backlight`, commit `3501a25`, based on 1.14.2):
 `kexts/NVRM/nvrm_edpbl.cpp` does the DPCD writes on a private kernel RM client (pattern of `nvrm_fbinfo.cpp`) for panels
 with AUX-only brightness; `nvkms_xnu_backlight()` asks it first and otherwise calls NVKMS as before. No ACPI tables
 needed, so it also removes the reason for `nvrmacpibl=1` on such a panel. Boot-arg `nvrmedpbl=0|1|2`.
@@ -40,14 +41,15 @@ needed, so it also removes the reason for `nvrmacpibl=1` on such a panel. Boot-a
 NVRM can not be relinked here (the RM objects exist only in NullMoth's build tree), so the same code is packaged as a
 kext of its own, on the fork branch after the NVRM commit:
 
-| Commit (fork `thanhnndev/nvidia-macos-driver`, branch `nvrm-edp-aux-backlight`) | What |
+| Commit (original numbers on the 1.14.2-based branch `nvrm-edp-aux-backlight`; cherry-picked onto `ga403wm`) | What |
 |---|---|
 | `3501a25` | `kexts/NVRM/nvrm_edpbl.cpp` + 9 lines in `os-nvkms-xnu.cpp`: the upstream PR |
 | `2c07cf7` | machine-local packaging: `kexts/NVRMEdpBL` (own kext) + `nvrmBacklightCall()` in NVRMFB |
 | `c1bfb54` | cherry-pick of the VRAM-clear patch (see `VRAM-GRANT-STALL.md`), so one NVRMFB carries both |
 
-Worktree: `~/develop/projects/nvidia-macos-driver-ws-edpbl` (the main checkout `nvidia-macos-driver-ws` stays on
-`nvrmfb-vram-clear-nontemporal`; do not switch branches there, other sessions use it).
+Author's worktree: `~/develop/projects/nvidia-macos-driver-ws-ga403` (branch `ga403wm`). Anyone else: clone the fork, branch
+`ga403wm`, see [INSTALL.md §7](INSTALL.md#7-nvidia-driver-rtx-5060--the-oled). The commit that added `KMOD_EXPLICIT_DECL` (needed by
+`kmutil`) was missing from the old branch and is part of `ga403wm`.
 
 * `NVRMEdpBL.kext` publishes a service that answers `NVRMBacklight` like NVRM does and `kIOReturnNotFound` for a panel RM
   drives. It links against NVRM (`rm_kernel_rmapi_op`, `nv_xnu_gpu_state`), which needs `OSBundleCompatibleVersion` in
@@ -58,7 +60,7 @@ Worktree: `~/develop/projects/nvidia-macos-driver-ws-edpbl` (the main checkout `
 ## How to build, install, undo (all root steps through osascript, see HANDOFF "Hard-won rules")
 
 ```sh
-bash scripts/macos-build-nullmoth-local.sh                 # builds from the worktree, stages ~/efi-audit/brightness/stage
+bash scripts/macos-build-nullmoth-local.sh <fork checkout> # builds from the fork branch ga403wm, stages $BRIGHT_DIR/stage (~/efi-audit/brightness)
 # root, osascript "with administrator privileges" (put the call in a wrapper file; quoting $? inside -e breaks AppleScript):
 bash scripts/macos-aux-kc-dryrun.sh                        # builds an AuxKC in a scratch repository, installs nothing
 bash scripts/macos-edpbl-install.sh                        # hash check, backup to /Library/NullMoth/edpbl-patch, rebuild AuxKC

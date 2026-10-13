@@ -33,7 +33,7 @@ that stalls the display path.
 * The 46-63k page faults/s in WindowServer (`WINDOWSERVER-CPU.md` follow-up): a plain IOSurface read-back test in user
   space faults 0 times, so this is not ordinary IOSurface reading; DTrace is blocked by SIP.
 
-## Candidate fix (fork `thanhnndev/nvidia-macos-driver`, branch `nvrmfb-vram-clear-nontemporal`, not installed)
+## Candidate fix (fork `thanhnndev/nvidia-macos-driver`, branch `ga403wm`; first developed as `nvrmfb-vram-clear-nontemporal`)
 
 `nvu_zero_stream`: eight `movnti` per 64-byte line + `sfence`, run-time switch `debug.nvrmfb_clear_mode` (1 new, 0 old)
 and `debug.nvrmfb_clear_us_sum / _bytes / _us_max` so old and new can be compared in one boot with `macos-vramtest.sh`.
