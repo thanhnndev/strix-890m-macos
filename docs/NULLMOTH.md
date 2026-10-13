@@ -39,6 +39,20 @@ artifact, the machine install is the same commit) and has its own undo. Do not h
 Installed NVRMFB is the combined build of both (sha256 in `~/efi-audit/brightness/stage/SHA256SUMS`). The NVMTLDriver
 bundle is upstream's again: Codex's upload-copy candidate (PR #139) was evaluated and dropped, see `WINDOWSERVER-CPU.md`.
 Build / dry run / install: `scripts/macos-build-nullmoth-local.sh`, `macos-aux-kc-dryrun.sh`, `macos-edpbl-install.sh`.
+
+**Using these on another machine (checked 2026-10-13):**
+
+* The fork branches `nvrm-edp-aux-backlight` / `nvrmfb-vram-clear-nontemporal` exist only in the author's local worktrees; the
+  fork on GitHub has neither (`gh api repos/thanhnndev/nvidia-macos-driver/branches`). No patch PR is open upstream (only
+  the draft #139, a different change).
+* Upstream is at **1.14.7** (1.14.2 -> 1.14.7: among `kexts/` only `NVRM/accel/nvrm-accel.cpp` changed; the rest is installer,
+  app and user-space plugin). The patches are based on v1.14.2, so a rebase onto v1.14.7 is expected to be clean, but it has not
+  been built or loaded.
+* The install scripts accept only the exact 1.14.2 / local-build NVRMFB hashes and refuse anything else; with a different
+  upstream they stop on purpose. Paths default to `/Users/thanhnndev/efi-audit/...`: set `NM_HOME=/Users/<you>` (root scripts
+  run through osascript have no usable `$HOME`). `macos-build-nullmoth-local.sh` also needs `~/ogkm610` (open-gpu-kernel-modules
+  610.57.04) and a worktree of the fork.
+* No patched binary is distributed (PolyForm Noncommercial): another user must build from source.
 NVRM itself cannot be rebuilt here (the RM objects are only in NullMoth's build tree), hence the extra kext.
 
 ## Components
