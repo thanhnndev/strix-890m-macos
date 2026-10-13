@@ -10,13 +10,15 @@ component and recovery sections below stay valid; the lag section was replaced (
 reboot** (the running system still has the 1.14.7 build loaded until then). Upstream step: `install.sh` of
 `nullmoth-nvidia-1.15.0.tar.gz` (SHA-256 `6101cf8c...` checked against the release `SHA256SUMS.txt`), backup
 `/Library/NullMoth/backup-20261013-174350.lXzh5Q` (`uninstall.sh <backup>`); overlay: `macos-edpbl-install.sh` (`--undo`, state
-`/Library/NullMoth/edpbl-patch`; NVRMFB `ddabaa59...`, NVRMEdpBL `433dfcbf...`, fork `ga403wm` @ `fa4cdd4`). 1.14.7 -> 1.15.0 changed NVRM,
+`/Library/NullMoth/edpbl-patch`; NVRMFB `b9040104...` (upstream + the 21-line hook), NVRMEdpBL `433dfcbf...`, fork `ga403wm` @ `f5b5eaa`;
+17:59 swap: the first overlay of the same day still carried the VRAM clear and was replaced by the hook-only build). 1.14.7 -> 1.15.0 changed NVRM,
 NVRMFB and NVAccel (NVRMAGDC is identical) and the userland bundles, so the shader caches start empty again and the instrumented
 NVMTLDriver of the WindowServer-readback study (stage 1, finished) was replaced by upstream's. Checked right after the install:
 the installed hashes equal the package / the staged build, and the auxiliary collection holds NVRM, NVRMFB, NVRMAGDC, NVAccel and
-NVRMEdpBL. **What 1.15.0 fixed of ours: nothing.** It has no DPCD backlight path and `vramGrant` still clears with `rep stosq`, so
-both patches stay (VRAM clear is optional, see the table). Not yet confirmed: the boot on 1.15.0 itself. See "Local patches on top
-of upstream" below; the 1.14.0 paragraph that follows is the history of the first 1.14 install.
+NVRMEdpBL. **What 1.15.0 fixed of ours: nothing.** It has no DPCD backlight path, so the AUX brightness patch stays. The VRAM-clear
+patch was **dropped the same day** (not because upstream fixed it: its premise was the PAT slot, see `VRAM-GRANT-STALL.md`), so
+the only differences from upstream are the brightness kext and a 21-line hook in NVRMFB. Not yet confirmed: the boot on 1.15.0
+itself. See "Local patches on top of upstream" below; the 1.14.0 paragraph that follows is the history of the first 1.14 install.
 
 Installed before that: **1.14.0** (2026-10-11 19:57, `nullmoth-setup.sh` 1.14 run as root with `--pkg` (SHA-256 checked against
 the release `SHA256SUMS.txt`), `--tool NullMothSafe.efi` (1.14 build), `--logo off`). Backup of the previous install:
@@ -37,34 +39,35 @@ working NullMoth driver; a change needs a root cause and the owner's agreement.
 
 Rule: **upstream first.** Install the release package with its own `install.sh` (backs up, has `uninstall.sh`), then
 layer the machine patch. The patches live in our fork [`thanhnndev/nvidia-macos-driver`](https://github.com/thanhnndev/nvidia-macos-driver), branch **`ga403wm`**
-(= upstream `v1.15.0` + the patches, one branch, [description](https://github.com/thanhnndev/nvidia-macos-driver/blob/ga403wm/docs/GA403WM-PATCHES.md)); the install
+(= upstream `v1.15.0` + the brightness patch, one branch, [description](https://github.com/thanhnndev/nvidia-macos-driver/blob/ga403wm/docs/GA403WM-PATCHES.md)); the install
 scripts in this repository build and install from it and have their own undo. Do not hand-edit installed kexts.
 
 | Layer | What | Where | Undo |
 |---|---|---|---|
 | upstream | release package (SHA-256 checked), boot-arg `nvrmacpibl=1` added (1.14.1 made the NBCI backlight tables opt-in). Reference machine: **1.14.2**, backup `/Library/NullMoth/backup-20261012-134122.*`; current upstream is **1.15.0**, installed 2026-10-13, backup `/Library/NullMoth/backup-20261013-174350.*` | upstream | `uninstall.sh <backup>` |
-| VRAM clear | `nvu_zero_stream` (`movnti`) in `vramGrant`, `debug.nvrmfb_clear_mode`; **optional since the PAT fix** (about 3 % over upstream's `rep stosq`; kept for its counters, not proposed upstream); `VRAM-GRANT-STALL.md` | fork `ga403wm`, `kexts/NVRMFB/fb/nvrm-fb.cpp` | `scripts/macos-edpbl-install.sh --undo` |
+| ~~VRAM clear~~ | **dropped 2026-10-13.** `nvu_zero_stream` (`movnti`) was 3-4 % over upstream's `rep stosq` once the PAT slot was fixed (the slow clear was PA6 = UC-, not the store width); `VRAM-GRANT-STALL.md`. Last build with it: fork tag `ga403wm-with-vramclear` | - | - |
 | OLED brightness | DPCD brightness for AUX-only panels; `OLED-BRIGHTNESS-DPCD.md` | fork `ga403wm`, `kexts/NVRM/nvrm_edpbl.cpp` (the upstream-PR commit) + `kexts/NVRMEdpBL/` (own kext) | `scripts/macos-edpbl-install.sh --undo` |
 
-Installed NVRMFB is the combined build of both (sha256 in `~/efi-audit/brightness/stage/SHA256SUMS`). The NVMTLDriver
+Installed NVRMFB is upstream's plus the hook that asks `NVRMEdpBL` first (sha256 in `~/efi-audit/brightness-1.15.0-aux/stage/SHA256SUMS`). The NVMTLDriver
 bundle is upstream's again: Codex's upload-copy candidate (PR #139) was evaluated and dropped, see `WINDOWSERVER-CPU.md`.
 Build / dry run / install: `scripts/macos-build-nullmoth-local.sh`, `macos-aux-kc-dryrun.sh`, `macos-edpbl-install.sh`.
 
 **Using these on another machine (checked 2026-10-13):**
 
 * **Get the sources from the fork**, branch `ga403wm` (https://github.com/thanhnndev/nvidia-macos-driver); the install steps are in
-  [INSTALL.md §7](INSTALL.md#7-nvidia-driver-rtx-5060--the-oled). The old per-patch branches (`nvrm-edp-aux-backlight`,
-  `nvrmfb-vram-clear-nontemporal`) are on the fork too since 2026-10-13 (rebased onto 1.15.0, one concern each, without docs); `ga403wm` contains the same commits (cherry-picked,
-  plus the `KMOD_EXPLICIT_DECL` fix that was previously only in the installed build).
+  [INSTALL.md §7](INSTALL.md#7-nvidia-driver-rtx-5060--the-oled). The per-concern branch `nvrm-edp-aux-backlight` is on the fork too
+  (rebased onto 1.15.0, without docs: the upstream PR candidate); `ga403wm` has the same commits plus the machine packaging
+  (`NVRMEdpBL` kext + hook) and the `KMOD_EXPLICIT_DECL` fix. `nvrmfb-vram-clear-nontemporal` was deleted from the fork; the VRAM clear
+  is kept as the tag `ga403wm-with-vramclear` (9791f8f) and `ga403wm-on-1.14.7`.
 * The branch is rebased onto upstream **v1.15.0** without conflicts (the previous tip is the tag `ga403wm-on-1.14.7`). 1.14.7 -> 1.15.0
   changed `NVRMFB` (display power on wake, BAR1 budget for parked VRAM, ultrawide rasters), NVRM and NVAccel; our hunks (the
-  `vramGrant` clear line and the backlight call sites) applied unchanged. Staged build sha256 `ddabaa59...` / `433dfcbf...`. The
+  `vramGrant` clear line and the backlight call sites) applied unchanged. Staged build sha256 `b9040104...` / `433dfcbf...`. The
   1.15.0 package's NVRM links with `NVRMEdpBL` (the install script builds the collection and rolls back if a bundle is missing; it
   did not). Not yet checked: a boot on 1.15.0.
 * No patch PR is open upstream (only the draft #139, a different change).
 * The install scripts accept as "before" only: this build, the NVRMFB of the upstream package you name with
-  `UPSTREAM_NVRMFB=<pkgroot>/Library/Extensions/NVRMFB.kext/Contents/MacOS/NVRMFB`, or the 1.14.2 VRAM-only build. Anything
-  else stops on purpose. Paths default to the console user's `~/efi-audit/brightness` (`BRIGHT_DIR` overrides; root scripts
+  `UPSTREAM_NVRMFB=<pkgroot>/Library/Extensions/NVRMFB.kext/Contents/MacOS/NVRMFB`, or the 1.14.2 VRAM-only build (`f3e7bff4...`). Anything
+  else stops on purpose (a different overlay build needs `--undo` first). Paths default to the console user's `~/efi-audit/brightness` (`BRIGHT_DIR` overrides; root scripts
   run through osascript have no usable `$HOME`). `macos-build-nullmoth-local.sh` also needs `~/ogkm610` (open-gpu-kernel-modules
   610.57.04, `git clone --branch 610.57.04`) and a checkout of the fork.
 * No patched binary is distributed (PolyForm Noncommercial): another user must build from source.

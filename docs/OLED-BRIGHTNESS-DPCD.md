@@ -45,7 +45,7 @@ kext of its own, on the fork branch after the NVRM commit:
 |---|---|
 | `3501a25` | `kexts/NVRM/nvrm_edpbl.cpp` + 9 lines in `os-nvkms-xnu.cpp`: the upstream PR |
 | `2c07cf7` | machine-local packaging: `kexts/NVRMEdpBL` (own kext) + `nvrmBacklightCall()` in NVRMFB |
-| `c1bfb54` | cherry-pick of the VRAM-clear patch (see `VRAM-GRANT-STALL.md`), so one NVRMFB carries both |
+| ~~`c1bfb54`~~ | cherry-pick of the VRAM-clear patch; **dropped 2026-10-13** (see `VRAM-GRANT-STALL.md`), `ga403wm` has no NVRMFB change except the hook |
 
 Author's worktree: `~/develop/projects/nvidia-macos-driver-ws-ga403` (branch `ga403wm`). Anyone else: clone the fork, branch
 `ga403wm`, see [INSTALL.md §7](INSTALL.md#7-nvidia-driver-rtx-5060--the-oled). The commit that added `KMOD_EXPLICIT_DECL` (needed by
@@ -76,8 +76,8 @@ bash scripts/macos-edpbl-install.sh                        # hash check, backup 
 bash scripts/macos-edpbl-install.sh --undo                 # NVRMFB and NVRM plist as they were, kext removed, AuxKC rebuilt
 ```
 
-Order of undo: `macos-edpbl-install.sh --undo` first (back to the VRAM-clear-only NVRMFB), then
-`macos-nvrmfb-vramclear-patch.sh --undo` (upstream 1.14.2). The VRAM-only script refuses the combined hash on purpose.
+Undo: `macos-edpbl-install.sh --undo` puts the upstream NVRMFB back (and removes the kext). Installing a different overlay
+build needs `--undo` first (the script accepts only upstream's NVRMFB, the staged build or the 1.14.2 VRAM-only build as "before").
 Pitfalls hit: kmutil only accepts `root:wheel` kexts (run as root); a kext needs `KMOD_EXPLICIT_DECL` (`_kmod_info`);
 `kmutil` reports "could not find version compatible with 0.1" until NVRM has `OSBundleCompatibleVersion`.
 

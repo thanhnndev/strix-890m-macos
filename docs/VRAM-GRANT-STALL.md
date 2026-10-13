@@ -1,5 +1,10 @@
 # VRAM grant stall: `vramGrant` clears at ~110 MB/s while holding the display gate (2026-10-12)
 
+> **Status 2026-10-13: the patch was dropped.** The cause was the PAT slot (PA6 = UC-), fixed in the OpenCore config; after it
+> upstream's `rep stosq` clears at 1008-1048 MB/s, the `movnti` patch was only 3-4 % faster. The installed NVRMFB is upstream's
+> plus the AUX-brightness hook. Last build that had it: fork tag `ga403wm-with-vramclear`. The text below is the investigation
+> log; `debug.nvrmfb_clear_*` no longer exist on the running driver.
+
 Machine: GA403WM, RTX 5060 Laptop (PCIe x8), macOS 15.8.1, NullMoth 1.14.0 installed (fork checked at 1.14.2).
 Complements `WINDOWSERVER-CPU.md`: that page measured where WindowServer spends CPU, this one is a serialized kernel cost
 that stalls the display path.
@@ -118,8 +123,19 @@ own counters on the 17:27 boot (1.14.7 build, mode 1, desktop use): 2162 grants,
 over every grant size), slowest single clear 39.5 ms.
 
 Decision: **do not propose it upstream** (a 3 % change with kernel assembly is not a patch to ask for; the finding that matters
-is the PAT slot, which belongs to the OpenCore patch set). It stays in the local build only because `debug.nvrmfb_clear_us_sum` /
-`_bytes` / `_us_max` and `clear_mode` are what `macos-ws-pat-check.sh` and the A/B script read. When no script needs them,
-rebuild `ga403wm` without commit `0530397` and run `scripts/macos-edpbl-install.sh` again (it accepts the old build as "before"
-only after `--undo`). 1.15.0 install: NVRMFB `ddabaa59...` (clear patch + AUX hook), fork `ga403wm` @ `fa4cdd4`, branch
-`nvrmfb-vram-clear-nontemporal` on the fork keeps the single commit.
+is the PAT slot, which belongs to the OpenCore patch set).
+
+## Dropped (2026-10-13 17:59)
+
+Rule: as few patches on top of upstream as possible. Done on the machine and in the fork:
+
+* `scripts/macos-edpbl-install.sh --undo` (back to the 1.15.0 package NVRMFB `fb126c57...`), then the install again with the
+  hook-only build: NVRMFB `b9040104...`, NVRMEdpBL `433dfcbf...`, fork `ga403wm` @ `f5b5eaa` (the clear commit removed).
+  Loads at the next reboot.
+* Fork: `ga403wm` rebuilt without the clear commit and force-pushed; the old tip is the tag `ga403wm-with-vramclear` (9791f8f);
+  the branch `nvrmfb-vram-clear-nontemporal` was deleted on the fork.
+* `macos-ws-pat-check.sh` skips the clear A/B when `debug.nvrmfb_clear_mode` is absent; `macos-nvrmfb-vramclear-ab.sh` and
+  `macos-nvrmfb-vramclear-patch.sh` are legacy (they need the dropped build).
+
+What is left to watch is not store throughput but the display gate being held during the clear (`NVRMDisplayGate`); at
+1 GB/s an 8 MiB grant is about 8 ms. If a stall shows up again, measure it with `macos-vramtest.sh` (needs no counters).
