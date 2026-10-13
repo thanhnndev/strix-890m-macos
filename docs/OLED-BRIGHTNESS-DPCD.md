@@ -30,7 +30,7 @@ Decoded (VESA eDP names):
 
 ## Fix
 
-Fork [`thanhnndev/nvidia-macos-driver`](https://github.com/thanhnndev/nvidia-macos-driver), branch **`ga403wm`** (upstream v1.14.7 + the commits below; first developed as
+Fork [`thanhnndev/nvidia-macos-driver`](https://github.com/thanhnndev/nvidia-macos-driver), branch **`ga403wm`** (upstream v1.15.0 + the commits below; first developed as
 `nvrm-edp-aux-backlight`, commit `3501a25`, based on 1.14.2):
 `kexts/NVRM/nvrm_edpbl.cpp` does the DPCD writes on a private kernel RM client (pattern of `nvrm_fbinfo.cpp`) for panels
 with AUX-only brightness; `nvkms_xnu_backlight()` asks it first and otherwise calls NVKMS as before. No ACPI tables
@@ -56,6 +56,15 @@ Author's worktree: `~/develop/projects/nvidia-macos-driver-ws-ga403` (branch `ga
   NVRM's Info.plist (nobody declared one): the install script adds that one key and keeps the original.
 * `NVRMFB` asks that service first, then NVRM; a machine without the kext behaves as before.
 * Boot-arg `nvrmedpbl=0|1|2`: 0 off, 1 AUX-only panels (default), 2 any panel with the AUX capability.
+
+## Status with upstream 1.15.0 (2026-10-13)
+
+1.15.0 ("the last release for macOS 15") does not touch the backlight: `git grep -i -E 'dpcd|edpbl|aux.?backlight'` over its
+`kexts/` is empty, and the `NVRMFB` diff against 1.14.7 is display power on wake, BAR1 accounting and ultrawide modes. The panel is
+still AUX-only and RM's `SET_BACKLIGHT_BRIGHTNESS` is still a no-op for it, so the patch is still needed. `ga403wm` was rebased
+onto v1.15.0 without conflicts and the same `NVRMEdpBL` (`433dfcbf...`) and a rebuilt `NVRMFB` (`ddabaa59...`) were installed on top
+of the upstream package. Per-concern PR branch (without the VRAM clear and docs): `nvrm-edp-aux-backlight` on the fork. Not yet
+verified on 1.15.0: see "Verify after the reboot".
 
 ## How to build, install, undo (all root steps through osascript, see HANDOFF "Hard-won rules")
 

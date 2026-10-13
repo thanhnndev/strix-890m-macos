@@ -108,3 +108,18 @@ An 8 MiB clear is now approximately 7.7–8.0 ms at the measured throughput.
 The display gate still covers clear; no GPU clear or resource-lifetime change was made.
 WindowServer remains workload-dependent: 33.4% of one CPU / 34.5 flips/s in this round;
 zero flip errors/drops. See WINDOWSERVER-RESEARCH.md for full results and caveats.
+
+## Status with upstream 1.15.0 (2026-10-13)
+
+Upstream did not change the clear: `vramGrant` still calls `nvu_zero_wide` (`rep stosq`) in 1.14.7 and 1.15.0. Nothing to drop
+because of upstream, but the premise of this patch is gone: the slow clear was the OpenCore PAT patch (PA6 = UC-), not the
+store width. With PA6 = WC `rep stosq` runs at 1008-1048 MB/s and `movnti` at 1043-1094 MB/s (above), a gain of 3-4 %. Our
+own counters on the 17:27 boot (1.14.7 build, mode 1, desktop use): 2162 grants, 7.55 GB in 8.50 s (about 890 MB/s average
+over every grant size), slowest single clear 39.5 ms.
+
+Decision: **do not propose it upstream** (a 3 % change with kernel assembly is not a patch to ask for; the finding that matters
+is the PAT slot, which belongs to the OpenCore patch set). It stays in the local build only because `debug.nvrmfb_clear_us_sum` /
+`_bytes` / `_us_max` and `clear_mode` are what `macos-ws-pat-check.sh` and the A/B script read. When no script needs them,
+rebuild `ga403wm` without commit `0530397` and run `scripts/macos-edpbl-install.sh` again (it accepts the old build as "before"
+only after `--undo`). 1.15.0 install: NVRMFB `ddabaa59...` (clear patch + AUX hook), fork `ga403wm` @ `fa4cdd4`, branch
+`nvrmfb-vram-clear-nontemporal` on the fork keeps the single commit.
