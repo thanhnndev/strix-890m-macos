@@ -6,14 +6,28 @@ first pass of this page was derived from the installed binaries (`strings`, `llv
 WindowServer`; that was the wrong starting point, and the lag hypothesis it produced was not the best lead. The
 component and recovery sections below stay valid; the lag section was replaced (2026-10-11).
 
-**Current state (2026-10-16 08:41): upstream 2.0.3 + the fork overlay, installed, loads at the next reboot** (the running system
-still has 1.15.0). `nullmoth-nvidia-2.0.3.tar.gz` SHA-256 `9868142c...` checked; backup `/Library/NullMoth/backup-20261016-084139.YEHx0N`
-(`uninstall.sh <backup>` goes back to 1.15.0 files); overlay NVRMFB `5e2d35d9...` (upstream + hook), NVRMEdpBL `433dfcbf...` (unchanged),
-fork `ga403wm` @ `723e943` = v2.0.3 + 4 commits, rebased with no conflicts (old tip: tag `ga403wm-on-1.15.0`). Checked: our hunks
-apply unchanged, NVRMFB differs from upstream's only by the two IOKit imports of the hook, NVRMEdpBL's imports (`nv_xnu_gpu_state`,
-`rm_kernel_rmapi_op`) are still exported by NVRM 2.0.3; AuxKC holds NVRM, NVRMFB, NVRMAGDC, NVAccel, NVRMEdpBL, StrixAccel, StrixGOP.
-Upstream's new Mac-app brightness switch only sets `nvrmacpibl=1` (no DPCD path), so the AUX patch stays. Not confirmed: boot on 2.0.x.
-2.0.x security hardening (root-only NVKMS entry, diagnostic sysctls only with `nvrmdiag=1`) may break tools that read them.
+**Current state (2026-10-16 13:13): upstream 2.0.4 + the fork overlay, installed, loads at the next reboot** (the running system
+still has the 2.0.3 overlay). `nullmoth-nvidia-2.0.4.tar.gz` SHA-256 `ae307a43...` checked; backup `/Library/NullMoth/backup-20261016-131325.eR58xV`
+(`uninstall.sh <backup>` goes back to 2.0.3 files); overlay NVRMFB `5e2d35d9...` (byte-identical to the 2.0.3 overlay build: upstream
+2.0.3 -> 2.0.4 changed no kext, only the app and changelog), NVRMEdpBL `433dfcbf...` (unchanged), fork `ga403wm` @ `283175e`
+= v2.0.4 + 4 commits + docs, rebased with no conflicts (old tip: tag `ga403wm-on-2.0.3`). Checked: installed hashes equal the staged
+build (`~/efi-audit/brightness-2.0.4/stage/SHA256SUMS`), NVRM carries `OSBundleCompatibleVersion 0.1`, AuxKC holds NVRM, NVRMFB,
+NVRMAGDC, NVAccel and NVRMEdpBL. Not confirmed: boot on 2.0.4 (same gap as 2.0.3: 2.0.x security hardening — root-only NVKMS entry,
+diagnostic sysctls only with `nvrmdiag=1` — may break tools that read them).
+
+Why the app's Tahoe button failed before this (1401 Mac 2.0.4, `KMErrorDomain Code=71 ... could not find version compatible
+with '0.1'`): the one-button path test-builds the driver from the fresh package's NVRM (which has no
+`OSBundleCompatibleVersion`) while staging the installed `NVRMEdpBL` from `/Library/Extensions`, so `kmutil` cannot resolve
+`com.nullmoth.NVRM 0.1`. Same failure the 2.0.3 runbook already worked around by parking the kext
+(`~/efi-audit/upgrade-2.0.3/run-install.sh`); 2.0.4 runbook: `~/efi-audit/upgrade-2.0.4/run-install.sh`. Fix belongs upstream
+(ship `OSBundleCompatibleVersion` in NVRM or skip third-party kexts with NullMoth deps in the test). 13:16: Tahoe prepare done
+**without** a package, direct script (`nullmoth-setup.sh --update prepare`, no app): driver parked (`-nvoff`), BAR `13/-1` -> `-1/0`,
+IONDRVSupport block off, config backup `config.plist.nullmoth-update-20261016-131628` on the ESP, `com.nullmoth.osupdate`
+LaunchDaemon armed. The 2.0.4-on-Sequoia boot check was skipped (prepare parks the driver anyway); overlay binaries are
+byte-identical to the running 2.0.3 build. Next: Software Update to macOS 26; the first Tahoe start runs `finish`
+(NVAccel 26, AuxKC rebuild incl. the overlay, BAR restored, one self-reboot). Cancel: `nullmoth-setup.sh --update cancel`.
+
+Previous state: **(2026-10-16 08:41): upstream 2.0.3 + the fork overlay, installed, loads at the next reboot** (the running system
 
 Previous state: **(2026-10-13 17:43): upstream 1.15.0 + the fork overlay (`ga403wm`: NVRMFB + NVRMEdpBL), installed, loads at the next
 reboot** (the running system still has the 1.14.7 build loaded until then). Upstream step: `install.sh` of
