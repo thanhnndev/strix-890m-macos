@@ -1,0 +1,8 @@
+build/
+dist/
+out/
+ref/
+tools/bin/
+*.kext
+__pycache__/
+.DS_Store

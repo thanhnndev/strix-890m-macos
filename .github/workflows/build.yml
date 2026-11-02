@@ -1,0 +1,37 @@
+name: build
+
+# Builds the Strix kexts on macos-14 (ad-hoc, nothing is signed or notarized) and runs the host-side tests that need no hardware.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build kexts
+        run: bash scripts/build.sh
+
+      - name: Host tests
+        run: |
+          for t in test/strix_abi_profile_test.py test/strix_edid_override_test.py test/strix_gop_profile_test.py test/890m_inspect_test.py; do
+            echo "== $t"; python3 -I "$t"
+          done
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          for k in StrixGOP StrixAccel StrixMetalGate StrixHeadroom StrixProbe; do ditto -c -k --keepParent "build/$k.kext" "dist/$k.kext.zip"; done
+          (cd dist && shasum -a 256 *.zip > SHA256SUMS.txt)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: strix-${{ github.sha }}
+          path: dist/*
